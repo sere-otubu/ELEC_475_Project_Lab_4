@@ -2,3 +2,4 @@ venv
 project/coco2014
 project/train_cache.pt
 project/val_cache.pt
+project/__pycache__
