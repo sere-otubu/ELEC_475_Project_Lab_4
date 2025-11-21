@@ -1,0 +1,23 @@
+# Core PyTorch (The install command below handles the CUDA specific version)
+torch
+torchvision
+torchaudio
+
+# HuggingFace (For the pre-trained CLIP text encoder)
+transformers
+tokenizers
+
+# Data Management
+kagglehub
+pillow
+numpy
+pandas
+
+# Visualization & Progress
+matplotlib
+tqdm
+
+# Evaluation (Optional, but helpful for calculating metrics)
+scikit-learn
+
+random
