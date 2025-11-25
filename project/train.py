@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import matplotlib.pyplot as plt
 import time
 import os
@@ -17,15 +17,20 @@ DATA_DIR = "./coco2014" # Example root
 TRAIN_IMG_DIR = os.path.join(DATA_DIR, "images/train2014")
 VAL_IMG_DIR = os.path.join(DATA_DIR, "images/val2014")
 
+# SUBSET SETTINGS
+USE_SUBSET = True      # Set to False to use the full dataset later
+TRAIN_SUBSET = 82823   # ~20% of orginal training datatset - Number of images to use for training
+VAL_SUBSET = 40485     # ~20% of original valid validation datset - Number of images to use for validation
+
 # Hyperparameters
-BATCH_SIZE = 64        
+BATCH_SIZE = 32        
 LEARNING_RATE = 1e-4   
-EPOCHS = 5             
+EPOCHS = 10             
 TEMPERATURE = 0.07     
 
 # Paths
-TRAIN_CACHE = "train_cache.pt"
-VAL_CACHE = "val_cache.pt"
+TRAIN_CACHE = "train_cache_clean.pt"
+VAL_CACHE = "val_cache_clean.pt"
 SAVE_PATH = "best_model.pt"
 
 # Device
@@ -94,19 +99,47 @@ def validate(model, loader):
     return total_loss / len(loader)
 
 def main():
+    # Optimization for RTX Cards
+    torch.backends.cudnn.benchmark = True
+    
     print(f"Using device: {device}")
-    print(f"Training on: {TRAIN_IMG_DIR}")
-    print(f"Validating on: {VAL_IMG_DIR}")
-
+    
     # 1. Setup DataLoaders
-    # Check if cache files exist
     if not os.path.exists(TRAIN_CACHE) or not os.path.exists(VAL_CACHE):
-        print("❌ Error: Cache files not found. Please run preprocess_data.py first.")
+        print("❌ Error: Clean cache files not found. Please run fix_dataset.py first.")
         return
 
-    train_ds = COCOClipDataset(TRAIN_IMG_DIR, TRAIN_CACHE, transform=get_transforms())
-    val_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms())
+    print("Loading full datasets...")
+    full_train_ds = COCOClipDataset(TRAIN_IMG_DIR, TRAIN_CACHE, transform=get_transforms())
+    full_val_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms())
     
+    # --- SUBSET LOGIC ---
+    if USE_SUBSET:
+        print(f"\n--- CREATING SUBSETS ---")
+        
+        # Create Training Subset
+        # We use a random permutation to pick random indices, then slice the first N
+        if len(full_train_ds) > TRAIN_SUBSET:
+            train_indices = torch.randperm(len(full_train_ds))[:TRAIN_SUBSET]
+            train_ds = Subset(full_train_ds, train_indices)
+            print(f"Training: Reduced from {len(full_train_ds)} to {len(train_ds)}")
+        else:
+            train_ds = full_train_ds
+            print(f"Training: Using full size ({len(train_ds)})")
+
+        # Create Validation Subset
+        if len(full_val_ds) > VAL_SUBSET:
+            val_indices = torch.randperm(len(full_val_ds))[:VAL_SUBSET]
+            val_ds = Subset(full_val_ds, val_indices)
+            print(f"Validation: Reduced from {len(full_val_ds)} to {len(val_ds)}")
+        else:
+            val_ds = full_val_ds
+            print(f"Validation: Using full size ({len(val_ds)})")
+    else:
+        train_ds = full_train_ds
+        val_ds = full_val_ds
+
+    # Create Loaders
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     
@@ -121,6 +154,8 @@ def main():
     start_time = time.time()
     best_val_loss = float('inf')
 
+    print(f"\nStarting training for {EPOCHS} epochs...")
+
     for epoch in range(EPOCHS):
         print(f"\nEpoch {epoch+1}/{EPOCHS}")
         
@@ -134,22 +169,22 @@ def main():
         
         print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-        # Save best model based on Validation Loss
+        # Save best model
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), SAVE_PATH)
-            print(f"⬇️ Validation Loss improved. Model saved to {SAVE_PATH}")
+            print(f"⬇️ Model saved to {SAVE_PATH}")
 
     total_time = time.time() - start_time
     print(f"\nTraining complete in {total_time/60:.2f} minutes.")
 
-    # 4. Plotting 
+    # 4. Plotting
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, EPOCHS+1), train_losses, label='Training Loss')
     plt.plot(range(1, EPOCHS+1), val_losses, label='Validation Loss')
     plt.xlabel('Epochs')
     plt.ylabel('InfoNCE Loss')
-    plt.title('CLIP Fine-tuning Loss Curve')
+    plt.title(f'CLIP Fine-tuning (Subset: {len(train_ds)} Train, {len(val_ds)} Val)')
     plt.legend()
     plt.grid(True)
     plt.savefig('loss_curve.png')
