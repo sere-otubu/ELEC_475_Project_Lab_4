@@ -61,7 +61,7 @@ class COCOClipDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        return image, text_embedding, caption
+        return image, text_embedding, img_path
     
 def verify_dataset(dataset, num_samples=3):
     """
