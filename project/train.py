@@ -110,8 +110,8 @@ def main():
         return
 
     print("Loading full datasets...")
-    full_train_ds = COCOClipDataset(TRAIN_IMG_DIR, TRAIN_CACHE, transform=get_transforms())
-    full_val_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms())
+    full_train_ds = COCOClipDataset(TRAIN_IMG_DIR, TRAIN_CACHE, transform=get_transforms(split="train"))
+    full_val_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(split="val"))
     
     # --- SUBSET LOGIC ---
     if USE_SUBSET:
@@ -145,7 +145,7 @@ def main():
     
     # 2. Initialize Model
     model = CLIPModel().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
 
     # 3. Training Loop
     train_losses = []

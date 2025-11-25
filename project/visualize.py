@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import os
 import random
-import textwrap  # <--- Added for text wrapping
+import textwrap
 
 # Import your modules
 from model import CLIPModel
@@ -17,8 +17,6 @@ VAL_IMG_DIR = os.path.join(BASE_DIR, "images/val2014")
 VAL_CACHE = "val_cache_clean.pt"
 MODEL_PATH = "best_model.pt"
 
-# LIMIT THE SEARCH POOL
-SEARCH_POOL_SIZE = 1000 
 NUM_EXAMPLES = 3
 TOP_K = 5
 
@@ -29,7 +27,6 @@ def get_caption_safely(dataset, index):
     Robustly extracts a caption from the dataset, handling Subsets and missing keys.
     """
     # 1. Recursively unwrap Subsets to get to the real dataset
-    # (Handles cases where we have a Subset of a Subset)
     while isinstance(dataset, Subset):
         index = dataset.indices[index]
         dataset = dataset.dataset
@@ -38,26 +35,19 @@ def get_caption_safely(dataset, index):
     if hasattr(dataset, 'data'):
         item = dataset.data[index]
         
-        # If the item is a dictionary (Standard Case)
         if isinstance(item, dict):
-            # Check for common caption keys
             for key in ['caption', 'text', 'sentence', 'caption_text']:
                 if key in item:
                     return item[key]
-            
-            # Debugging: If no key matches, print what IS there
-            print(f"\nDEBUG ERROR: Item keys found: {list(item.keys())}")
+            # print(f"\nDEBUG ERROR: Item keys found: {list(item.keys())}")
             return "Error: Caption Key Missing"
             
-        # If the item is a tuple/list (Alternative Case)
         elif isinstance(item, (list, tuple)):
-            # Return the first string we find that looks like a caption
             for element in item:
                 if isinstance(element, str):
                     return element
             return str(item)
 
-    # 3. Fallback for datasets that store captions in a separate list
     elif hasattr(dataset, 'captions'):
         return dataset.captions[index]
 
@@ -66,15 +56,12 @@ def get_caption_safely(dataset, index):
 def visualize_retrieval(model, dataset):
     model.eval()
     
-    print(f"Selecting {SEARCH_POOL_SIZE} random images for the search pool...")
-    # Ensure we don't pick more than we have
-    n_samples = min(len(dataset), SEARCH_POOL_SIZE)
-    indices = torch.randperm(len(dataset))[:n_samples].tolist()
-    subset_ds = Subset(dataset, indices)
+    # 1. Build Index on FULL Dataset
+    print(f"Building index of ALL {len(dataset)} validation images...")
+    print("(This involves running the model on every image, so please wait...)")
     
-    # 1. Build Index
-    print("Building index (calculating embeddings)...")
-    loader = DataLoader(subset_ds, batch_size=32, shuffle=False, num_workers=0)
+    # Use the full dataset here
+    loader = DataLoader(dataset, batch_size=32, shuffle=False, num_workers=0)
     
     all_image_embeds = []
     all_image_paths = [] 
@@ -96,29 +83,31 @@ def visualize_retrieval(model, dataset):
             all_image_paths.extend(paths)
             
     all_image_embeds = torch.cat(all_image_embeds)
+    print("Index built successfully.")
 
     # 2. Run Queries
-    # Pick random indices from our SUBSET
-    query_indices = random.sample(range(len(subset_ds)), NUM_EXAMPLES)
+    # Pick random indices from the FULL dataset
+    query_indices = random.sample(range(len(dataset)), NUM_EXAMPLES)
     
     print(f"\nVisualizing {NUM_EXAMPLES} queries...")
     
     for idx in query_indices:
-        item = subset_ds[idx]
+        # Access directly from dataset
+        item = dataset[idx]
         _, text_embed, true_path = item
         
-        # --- NEW: GET CAPTION ---
-        caption_text = get_caption_safely(subset_ds, idx)
+        # Get caption from full dataset
+        caption_text = get_caption_safely(dataset, idx)
         
         text_embed = text_embed.to(device).unsqueeze(0)
         text_embed = text_embed / text_embed.norm(dim=1, keepdim=True)
         
-        # Calculate similarity
+        # Calculate similarity against ALL images
         sims = text_embed @ all_image_embeds.t()
         scores, top_indices = sims.topk(TOP_K, dim=1)
         
         # --- PLOTTING ---
-        fig, axes = plt.subplots(1, TOP_K + 1, figsize=(15, 5)) # Increased height slightly
+        fig, axes = plt.subplots(1, TOP_K + 1, figsize=(15, 5))
         
         # Add the Caption as the Main Title
         wrapped_caption = "\n".join(textwrap.wrap(f"Query: {caption_text}", width=80))
@@ -138,6 +127,14 @@ def visualize_retrieval(model, dataset):
             match_path = all_image_paths[match_idx]
             score = scores[0][i].item()
             
+            # --- MODIFICATION: Fetch Caption Snippet ---
+            # match_idx is the index in the dataset/loader
+            retrieved_idx = match_idx.item()
+            retrieved_caption = get_caption_safely(dataset, retrieved_idx)
+            
+            # Create a short snippet (e.g., first 30 chars)
+            snippet = textwrap.shorten(retrieved_caption, width=30, placeholder="...")
+            
             try:
                 img = Image.open(match_path).convert("RGB")
                 axes[i+1].imshow(img)
@@ -146,7 +143,9 @@ def visualize_retrieval(model, dataset):
             
             is_correct = (match_path == true_path)
             color = 'green' if is_correct else 'red'
-            axes[i+1].set_title(f"Rank {i+1}\nScore: {score:.3f}", color=color, fontsize=10)
+            
+            # Add snippet to the title
+            axes[i+1].set_title(f"Rank {i+1}\nScore: {score:.3f}\n{snippet}", color=color, fontsize=8)
             axes[i+1].axis("off")
             
             if is_correct:
@@ -155,7 +154,6 @@ def visualize_retrieval(model, dataset):
                     spine.set_linewidth(3)
 
         plt.tight_layout()
-        # Adjust layout to make room for the big title
         plt.subplots_adjust(top=0.80)
         
         save_name = f"retrieval_example_{idx}.png"
@@ -167,7 +165,8 @@ def main():
     model = CLIPModel().to(device)
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     
-    ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms())
+    # Use split="val" for deterministic transforms (no random crops)
+    ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(split="val"))
     visualize_retrieval(model, ds)
 
 if __name__ == "__main__":

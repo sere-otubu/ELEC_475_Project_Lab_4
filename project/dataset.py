@@ -12,15 +12,30 @@ CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
 IMAGE_SIZE = 224
 
 # --- Helper Function ---
-def get_transforms():
+def get_transforms(split="train"):
     """
-    Returns the image preprocessing pipeline required by CLIP.
+    Returns transforms. 
+    - 'train': Adds augmentation (RandomResizedCrop, Flip, Jitter)
+    - 'val':   YOUR ORIGINAL LOGIC (Exact Resize, Deterministic)
     """
-    return transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD)
-    ])
+    if split == "train":
+        # --- NEW: Data Augmentation for Training ---
+        return transforms.Compose([
+            # We use RandomResizedCrop to introduce scale invariance
+            # It replaces Resize but adds a "zoom" effect
+            transforms.RandomResizedCrop((IMAGE_SIZE, IMAGE_SIZE), scale=(0.8, 1.0)),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD)
+        ])
+    else:
+        # --- ORIGINAL: Your exact logic for Validation ---
+        return transforms.Compose([
+            transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD)
+        ])
 
 class COCOClipDataset(Dataset):
     def __init__(self, img_dir, cache_file, transform=None):
