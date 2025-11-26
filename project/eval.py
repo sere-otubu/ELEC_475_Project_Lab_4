@@ -13,6 +13,8 @@ BASE_DIR = "./coco2014"
 VAL_IMG_DIR = os.path.join(BASE_DIR, "images/val2014")
 VAL_CACHE = "val_cache_clean.pt"
 MODEL_PATH = "best_model.pt"
+# MODEL_PATH = "best_model_mod1.pt"
+# MODEL_PATH = "best_model_mod2.pt"
 
 # LIMIT EVALUATION SIZE TO PREVENT CRASHING
 # 1,000 is a standard sample size for quick evaluation
@@ -88,7 +90,7 @@ def main():
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     
     print("Preparing Dataset...")
-    full_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms())
+    full_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(), subset_file="test.txt")
     
     # Select a random subset for evaluation
     indices = torch.randperm(len(full_ds))[:EVAL_SIZE]

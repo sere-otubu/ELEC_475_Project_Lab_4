@@ -6,74 +6,101 @@ import matplotlib.pyplot as plt
 import time
 import os
 from tqdm import tqdm
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
-# Import our custom modules
+# Import your custom modules
 from model import CLIPModel
 from dataset import COCOClipDataset, get_transforms
 
-# --- CONFIGURATION ---
-# Use the same base directory you found earlier
-DATA_DIR = "./coco2014" # Example root
+# ==========================================
+#        MASTER CONFIGURATION
+# ==========================================
+# Choose your mode: "baseline", "mod_1", or "mod_2"
+EXPERIMENT_MODE = "best" 
+
+# Directory Settings
+DATA_DIR = "./coco2014" 
 TRAIN_IMG_DIR = os.path.join(DATA_DIR, "images/train2014")
 VAL_IMG_DIR = os.path.join(DATA_DIR, "images/val2014")
-
-# SUBSET SETTINGS
-USE_SUBSET = True      # Set to False to use the full dataset later
-TRAIN_SUBSET = 82823   # ~20% of orginal training datatset - Number of images to use for training
-VAL_SUBSET = 40485     # ~20% of original valid validation datset - Number of images to use for validation
-
-# Hyperparameters
-BATCH_SIZE = 32        
-LEARNING_RATE = 1e-4   
-EPOCHS = 10             
-TEMPERATURE = 0.07     
-
-# Paths
 TRAIN_CACHE = "train_cache_clean.pt"
 VAL_CACHE = "val_cache_clean.pt"
 SAVE_PATH = "best_model.pt"
+TRAIN_TXT = "train.txt"
+TEST_TXT = "test.txt"
+# MODEL_PATH = "best_model_mod1.pt"
+# MODEL_PATH = "best_model_mod2.pt"
 
-# Device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Subset Settings (Keep True for consistent reporting)
+USE_SUBSET = True      
+TRAIN_SUBSET = 82823   
+VAL_SUBSET = 40485     
+
+# Hardware Settings
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# ==========================================
+#    AUTO-CONFIGURATION (DO NOT EDIT)
+# ==========================================
+if EXPERIMENT_MODE == "baseline":
+    BATCH_SIZE = 32
+    LEARNING_RATE = 1e-4
+    EPOCHS = 10
+    USE_ADAMW = False
+    USE_SCHEDULER = False
+    USE_AUGMENTATION = False
+    UNFREEZE_LAYER4 = False
+    print(f"MODE: BASELINE (Frozen Backbone, No Augmentation)")
+
+elif EXPERIMENT_MODE == "mod_1":
+    BATCH_SIZE = 32
+    LEARNING_RATE = 1e-4
+    EPOCHS = 10
+    USE_ADAMW = False # Typically baseline optimizer is kept for simple aug tests
+    USE_SCHEDULER = False
+    USE_AUGMENTATION = True
+    UNFREEZE_LAYER4 = False
+    print(f"MODE: Modification 1 (Frozen Backbone, Weight Decay, Data Augmentation)")
+
+elif EXPERIMENT_MODE == "mod_2":
+    BATCH_SIZE = 64  # Increased for RTX 2000 Ada
+    LEARNING_RATE = 1e-4
+    EPOCHS = 10
+    USE_ADAMW = True
+    USE_SCHEDULER = True
+    USE_AUGMENTATION = True
+    UNFREEZE_LAYER4 = True
+    print(f" MODE: Modification 2 (Unfrozen Layer 4, Weight Decay, AdamW, Scheduler, Augmentation)")
+
+# ==========================================
+#              TRAINING CODE
+# ==========================================
 
 def info_nce_loss(image_features, text_features, temperature=0.07):
-    """
-    Calculates the symmetric InfoNCE (Contrastive) Loss[cite: 40, 73].
-    """
-    # Normalize features (Cosine Similarity requires normalized vectors)
+    # Normalize features
     image_features = image_features / image_features.norm(dim=1, keepdim=True)
     text_features = text_features / text_features.norm(dim=1, keepdim=True)
 
-    # Similarity Matrix (logits)
+    # Similarity Matrix & Labels
     logits = (image_features @ text_features.t()) / temperature
+    labels = torch.arange(len(logits)).to(DEVICE)
 
-    # Labels (Diagonal is the positive match)
-    labels = torch.arange(len(logits)).to(device)
-
-    # Symmetric Cross Entropy Loss
-    loss_i = nn.functional.cross_entropy(logits, labels)      # Image -> Text
-    loss_t = nn.functional.cross_entropy(logits.t(), labels)  # Text -> Image
-    
+    # Symmetric Loss
+    loss_i = nn.functional.cross_entropy(logits, labels)
+    loss_t = nn.functional.cross_entropy(logits.t(), labels)
     return (loss_i + loss_t) / 2
 
 def train_one_epoch(model, loader, optimizer):
     model.train()
     total_loss = 0
-    
     loop = tqdm(loader, leave=True, desc="Training")
+    
     for images, text_embeddings, _ in loop:
-        images = images.to(device)
-        text_embeddings = text_embeddings.to(device)
+        images = images.to(DEVICE)
+        text_embeddings = text_embeddings.to(DEVICE)
 
         optimizer.zero_grad()
-
-        # Forward Pass (Image Encoder only)
         image_out, _ = model(images) 
-        
-        # Loss vs Cached Text Embeddings
-        loss = info_nce_loss(image_out, text_embeddings, TEMPERATURE)
-
-        # Backward Pass
+        loss = info_nce_loss(image_out, text_embeddings)
         loss.backward()
         optimizer.step()
 
@@ -85,108 +112,90 @@ def train_one_epoch(model, loader, optimizer):
 def validate(model, loader):
     model.eval()
     total_loss = 0
-    
-    # No gradient calculation needed for validation
     with torch.no_grad():
         for images, text_embeddings, _ in loader:
-            images = images.to(device)
-            text_embeddings = text_embeddings.to(device)
-            
+            images = images.to(DEVICE)
+            text_embeddings = text_embeddings.to(DEVICE)
             image_out, _ = model(images)
-            loss = info_nce_loss(image_out, text_embeddings, TEMPERATURE)
+            loss = info_nce_loss(image_out, text_embeddings)
             total_loss += loss.item()
-            
     return total_loss / len(loader)
 
 def main():
-    # Optimization for RTX Cards
     torch.backends.cudnn.benchmark = True
-    
-    print(f"Using device: {device}")
-    
-    # 1. Setup DataLoaders
-    if not os.path.exists(TRAIN_CACHE) or not os.path.exists(VAL_CACHE):
-        print("❌ Error: Clean cache files not found. Please run fix_dataset.py first.")
-        return
+    print(f"Using device: {DEVICE}")
 
-    print("Loading full datasets...")
-    full_train_ds = COCOClipDataset(TRAIN_IMG_DIR, TRAIN_CACHE, transform=get_transforms(split="train"))
-    full_val_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(split="val"))
+    # 1. SETUP DATASETS
+    # Transform logic: If augmentation is ON, use 'train' split logic, else use 'val' logic
+    print("Loading datasets from split files...")
+
+    train_transform_split = "train" if USE_AUGMENTATION else "val"
     
-    # --- SUBSET LOGIC ---
-    if USE_SUBSET:
-        print(f"\n--- CREATING SUBSETS ---")
-        
-        # Create Training Subset
-        # We use a random permutation to pick random indices, then slice the first N
-        if len(full_train_ds) > TRAIN_SUBSET:
-            train_indices = torch.randperm(len(full_train_ds))[:TRAIN_SUBSET]
-            train_ds = Subset(full_train_ds, train_indices)
-            print(f"Training: Reduced from {len(full_train_ds)} to {len(train_ds)}")
-        else:
-            train_ds = full_train_ds
-            print(f"Training: Using full size ({len(train_ds)})")
+    train_ds = COCOClipDataset(TRAIN_IMG_DIR, TRAIN_CACHE, transform=get_transforms(split=train_transform_split), subset_file=TRAIN_TXT)
+    val_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(split="val"), subset_file=TEST_TXT)
 
-        # Create Validation Subset
-        if len(full_val_ds) > VAL_SUBSET:
-            val_indices = torch.randperm(len(full_val_ds))[:VAL_SUBSET]
-            val_ds = Subset(full_val_ds, val_indices)
-            print(f"Validation: Reduced from {len(full_val_ds)} to {len(val_ds)}")
-        else:
-            val_ds = full_val_ds
-            print(f"Validation: Using full size ({len(val_ds)})")
-    else:
-        train_ds = full_train_ds
-        val_ds = full_val_ds
-
-    # Create Loaders
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-    
-    # 2. Initialize Model
-    model = CLIPModel().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
 
-    # 3. Training Loop
+    # 2. INITIALIZE MODEL
+    model = CLIPModel().to(DEVICE)
+
+    # Handle Freezing/Unfreezing Override
+    # Note: model.py defaults to Unfreezing Layer 4. 
+    # If we are in 'baseline' or 'augment' mode, we must RE-FREEZE it.
+    if not UNFREEZE_LAYER4:
+        print("Locking Backbone...")
+        for param in model.image_encoder.parameters():
+            param.requires_grad = False
+    
+    # 3. SETUP OPTIMIZER & SCHEDULER
+    if USE_ADAMW:
+        optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+    else:
+        # Baseline uses standard Adam
+        optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    scheduler = None
+    if USE_SCHEDULER:
+        scheduler = CosineAnnealingLR(optimizer, T_max=EPOCHS)
+
+    # 4. TRAINING LOOP
     train_losses = []
     val_losses = []
-    
-    start_time = time.time()
     best_val_loss = float('inf')
-
-    print(f"\nStarting training for {EPOCHS} epochs...")
+    
+    print(f"\nStarting {EXPERIMENT_MODE.upper()} training for {EPOCHS} epochs...")
 
     for epoch in range(EPOCHS):
         print(f"\nEpoch {epoch+1}/{EPOCHS}")
         
-        # Train
         avg_train_loss = train_one_epoch(model, train_loader, optimizer)
-        train_losses.append(avg_train_loss)
-        
-        # Validate
         avg_val_loss = validate(model, val_loader)
-        val_losses.append(avg_val_loss)
         
-        print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+        train_losses.append(avg_train_loss)
+        val_losses.append(avg_val_loss)
 
-        # Save best model
+        # Scheduler Step
+        current_lr = LEARNING_RATE
+        if scheduler:
+            scheduler.step()
+            current_lr = scheduler.get_last_lr()[0]
+
+        print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | LR: {current_lr:.6f}")
+
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), SAVE_PATH)
             print(f"⬇️ Model saved to {SAVE_PATH}")
 
-    total_time = time.time() - start_time
-    print(f"\nTraining complete in {total_time/60:.2f} minutes.")
-
-    # 4. Plotting
+    # Plotting
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, EPOCHS+1), train_losses, label='Training Loss')
     plt.plot(range(1, EPOCHS+1), val_losses, label='Validation Loss')
+    plt.title(f'Training Results ({EXPERIMENT_MODE.upper()})')
     plt.xlabel('Epochs')
-    plt.ylabel('InfoNCE Loss')
-    plt.title(f'CLIP Fine-tuning (Subset: {len(train_ds)} Train, {len(val_ds)} Val)')
+    plt.ylabel('Loss')
     plt.legend()
-    plt.grid(True)
     plt.savefig('loss_curve.png')
     plt.show()
 

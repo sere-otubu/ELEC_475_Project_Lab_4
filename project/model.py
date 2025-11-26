@@ -21,26 +21,33 @@ class ProjectionHead(nn.Module):
         return self.projection(x)
 
 class CLIPModel(nn.Module):
-    def __init__(self, freeze_text_encoder=True):
+    def __init__(self, freeze_text_encoder=True): 
         super().__init__()
         
-        # --- 1. Image Encoder (ResNet50) ---
-        # Initialize with pretrained ImageNet weights
+        # 1. Image Encoder (ResNet50)
+        # We load the weights from ImageNet
         resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         
         # Remove the classification head (fc layer)
-        # ResNet50's feature extractor output is 2048 dimensions
         self.image_encoder = nn.Sequential(*list(resnet.children())[:-1])
         
-        # --- 2. Projection Head ---
-        # Map 2048 -> 512
+        # --- FINE-TUNING STRATEGY (Layer 4 Unfreeze) ---
+        # First, freeze the entire backbone
+        for param in self.image_encoder.parameters():
+            param.requires_grad = False
+            
+        # Then, UNFREEZE only the last residual block (Layer 4)
+        # In a standard ResNet50 Sequential container, Layer 4 is at index 7
+        for param in self.image_encoder[7].parameters():
+            param.requires_grad = True
+            
+        print("Model Init: ResNet Backbone Frozen. Layer 4 Unfrozen for Fine-Tuning.")
+        
+        # 2. Projection Head (Trainable)
         self.image_projection = ProjectionHead(input_dim=2048, output_dim=512)
 
-        # --- 3. Text Encoder (Pretrained) ---
-        # Load OpenAI's pretrained text encoder to match our preprocessing
+        # 3. Text Encoder (Frozen)
         self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch32")
-        
-        # Freeze text encoder parameters if requested
         if freeze_text_encoder:
             for param in self.text_encoder.parameters():
                 param.requires_grad = False

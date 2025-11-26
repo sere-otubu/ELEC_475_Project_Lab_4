@@ -41,7 +41,7 @@ def get_transforms(split="train"):
         ])
 
 class COCOClipDataset(Dataset):
-    def __init__(self, img_dir, cache_file, transform=None):
+    def __init__(self, img_dir, cache_file, transform=None, subset_file=None):
         """
         Args:
             img_dir (string): Directory with all the images.
@@ -51,7 +51,28 @@ class COCOClipDataset(Dataset):
         self.img_dir = img_dir
         self.transform = transform
         # Load the cached text embeddings and metadata
-        self.data = torch.load(cache_file) 
+        full_data = torch.load(cache_file)
+
+        if subset_file and os.path.exists(subset_file):
+            print(f"Filtering dataset using {subset_file}...")
+            with open(subset_file, 'r') as f:
+                # Create a set of filenames (stripped of directory and newline)
+                valid_filenames = set(os.path.basename(line.strip()) for line in f)
+            
+            # Determine prefix for this dataset (e.g., 'train2014')
+            prefix = "train2014" if "train" in img_dir else "val2014"
+            
+            self.data = []
+            for item in full_data:
+                # Reconstruct filename to check against our valid set
+                image_id = item['image_id']
+                filename = f"COCO_{prefix}_{image_id:012d}.jpg"
+                
+                if filename in valid_filenames:
+                    self.data.append(item)
+            print(f"Dataset filtered: {len(self.data)} images remain.")
+        else:
+            self.data = full_data 
 
     def __len__(self):
         return len(self.data)
