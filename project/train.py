@@ -25,15 +25,13 @@ VAL_IMG_DIR = os.path.join(DATA_DIR, "images/val2014")
 TRAIN_CACHE = "train_cache_clean.pt"
 VAL_CACHE = "val_cache_clean.pt"
 SAVE_PATH = "best_model.pt"
-TRAIN_TXT = "train.txt"
-TEST_TXT = "test.txt"
+TRAIN_TXT = "subset_train.txt"
+TEST_TXT = "subset_val.txt"
 # MODEL_PATH = "best_model_mod1.pt"
 # MODEL_PATH = "best_model_mod2.pt"
 
 # Subset Settings (Keep True for consistent reporting)
-USE_SUBSET = True      
-TRAIN_SUBSET = 82823   
-VAL_SUBSET = 40485     
+USE_SUBSET = True       
 
 # Hardware Settings
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

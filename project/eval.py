@@ -90,7 +90,7 @@ def main():
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     
     print("Preparing Dataset...")
-    full_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(), subset_file="test.txt")
+    full_ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(), subset_file="subtest_val.txt")
     
     # Select a random subset for evaluation
     indices = torch.randperm(len(full_ds))[:EVAL_SIZE]
