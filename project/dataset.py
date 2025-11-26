@@ -19,18 +19,21 @@ def get_transforms(split="train"):
     - 'val':   YOUR ORIGINAL LOGIC (Exact Resize, Deterministic)
     """
     if split == "train":
-        # --- NEW: Data Augmentation for Training ---
-        return transforms.Compose([
-            # We use RandomResizedCrop to introduce scale invariance
-            # It replaces Resize but adds a "zoom" effect
-            transforms.RandomResizedCrop((IMAGE_SIZE, IMAGE_SIZE), scale=(0.8, 1.0)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD)
-        ])
+            return transforms.Compose([
+                # REMOVED: RandomResizedCrop
+                # REMOVED: RandomHorizontalFlip
+                
+                # KEEP: Resize (Standard)
+                transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+                
+                # KEEP: Color Jitter (Makes model robust to lighting, safe for COCO)
+                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+                
+                transforms.ToTensor(),
+                transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD)
+            ])
     else:
-        # --- ORIGINAL: Your exact logic for Validation ---
+        # Validation stays the same
         return transforms.Compose([
             transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
             transforms.ToTensor(),
