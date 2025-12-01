@@ -21,7 +21,7 @@ class ProjectionHead(nn.Module):
         return self.projection(x)
 
 class CLIPModel(nn.Module):
-    def __init__(self, freeze_text_encoder=True): 
+    def __init__(self, freeze_text_encoder=True, train_only_layer4=False): 
         super().__init__()
         
         # 1. Image Encoder (ResNet50)
@@ -31,17 +31,21 @@ class CLIPModel(nn.Module):
         # Remove the classification head (fc layer)
         self.image_encoder = nn.Sequential(*list(resnet.children())[:-1])
         
-        # --- FINE-TUNING STRATEGY (Layer 4 Unfreeze) ---
-        # First, freeze the entire backbone
-        for param in self.image_encoder.parameters():
-            param.requires_grad = False
+        # --- TRAINING CONFIGURATION ---
+        if train_only_layer4:
+            # MODE: Modification 2 (Partial Freezing)
+            # 1. Freeze EVERYTHING first
+            for param in self.image_encoder.parameters():
+                param.requires_grad = False
             
-        # Then, UNFREEZE only the last residual block (Layer 4)
-        # In a standard ResNet50 Sequential container, Layer 4 is at index 7
-        for param in self.image_encoder[7].parameters():
-            param.requires_grad = True
-            
-        print("Model Init: ResNet Backbone Frozen. Layer 4 Unfrozen for Fine-Tuning.")
+            # 2. Unfreeze ONLY Layer 4
+            for param in self.image_encoder[7].parameters():
+                param.requires_grad = True
+        else:
+            # MODE: Baseline & Mod 1 (Full Training)
+            # Ensure everything is trainable (Standard PyTorch behavior)
+            for param in self.image_encoder.parameters():
+                param.requires_grad = True
         
         # 2. Projection Head (Trainable)
         self.image_projection = ProjectionHead(input_dim=2048, output_dim=512)

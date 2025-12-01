@@ -15,11 +15,11 @@ from dataset import COCOClipDataset, get_transforms
 BASE_DIR = "./coco2014"
 VAL_IMG_DIR = os.path.join(BASE_DIR, "images/val2014")
 VAL_CACHE = "val_cache_clean.pt"
-MODEL_PATH = "best_model.pt"
+# MODEL_PATH = "best_model.pt"
 # MODEL_PATH = "best_model_mod1.pt"
-# MODEL_PATH = "best_model_mod2.pt"
+MODEL_PATH = "best_model_mod2.pt"
 
-NUM_EXAMPLES = 3
+NUM_EXAMPLES = 2
 TOP_K = 5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -168,7 +168,7 @@ def main():
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     
     # Use split="val" for deterministic transforms (no random crops)
-    ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(split="val"))
+    ds = COCOClipDataset(VAL_IMG_DIR, VAL_CACHE, transform=get_transforms(split="val"), subset_file="subtest_val.txt")
     visualize_retrieval(model, ds)
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from dataset import COCOClipDataset, get_transforms
 #        MASTER CONFIGURATION
 # ==========================================
 # Choose your mode: "baseline", "mod_1", or "mod_2"
-EXPERIMENT_MODE = "best" 
+EXPERIMENT_MODE = "baseline" 
 
 # Directory Settings
 DATA_DIR = "./coco2014" 
@@ -24,11 +24,12 @@ TRAIN_IMG_DIR = os.path.join(DATA_DIR, "images/train2014")
 VAL_IMG_DIR = os.path.join(DATA_DIR, "images/val2014")
 TRAIN_CACHE = "train_cache_clean.pt"
 VAL_CACHE = "val_cache_clean.pt"
+# Uncomment to name each model weights differently
 SAVE_PATH = "best_model.pt"
+# SAVE_PATH = "best_model_mod1.pt"
+# SAVE_PATH = "best_model_mod2.pt"
 TRAIN_TXT = "subset_train.txt"
 TEST_TXT = "subset_val.txt"
-# MODEL_PATH = "best_model_mod1.pt"
-# MODEL_PATH = "best_model_mod2.pt"
 
 # Subset Settings (Keep True for consistent reporting)
 USE_SUBSET = True       
@@ -46,7 +47,7 @@ if EXPERIMENT_MODE == "baseline":
     USE_ADAMW = False
     USE_SCHEDULER = False
     USE_AUGMENTATION = False
-    UNFREEZE_LAYER4 = False
+    TRAIN_ONLY_LAYER4 = False
     print(f"MODE: BASELINE (Frozen Backbone, No Augmentation)")
 
 elif EXPERIMENT_MODE == "mod_1":
@@ -56,7 +57,7 @@ elif EXPERIMENT_MODE == "mod_1":
     USE_ADAMW = False # Typically baseline optimizer is kept for simple aug tests
     USE_SCHEDULER = False
     USE_AUGMENTATION = True
-    UNFREEZE_LAYER4 = False
+    TRAIN_ONLY_LAYER4 = False
     print(f"MODE: Modification 1 (Frozen Backbone, Weight Decay, Data Augmentation)")
 
 elif EXPERIMENT_MODE == "mod_2":
@@ -66,7 +67,7 @@ elif EXPERIMENT_MODE == "mod_2":
     USE_ADAMW = True
     USE_SCHEDULER = True
     USE_AUGMENTATION = True
-    UNFREEZE_LAYER4 = True
+    TRAIN_ONLY_LAYER4 = True
     print(f" MODE: Modification 2 (Unfrozen Layer 4, Weight Decay, AdamW, Scheduler, Augmentation)")
 
 # ==========================================
@@ -136,15 +137,7 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
 
     # 2. INITIALIZE MODEL
-    model = CLIPModel().to(DEVICE)
-
-    # Handle Freezing/Unfreezing Override
-    # Note: model.py defaults to Unfreezing Layer 4. 
-    # If we are in 'baseline' or 'augment' mode, we must RE-FREEZE it.
-    if not UNFREEZE_LAYER4:
-        print("Locking Backbone...")
-        for param in model.image_encoder.parameters():
-            param.requires_grad = False
+    model = CLIPModel(train_only_layer4=TRAIN_ONLY_LAYER4).to(DEVICE)
     
     # 3. SETUP OPTIMIZER & SCHEDULER
     if USE_ADAMW:

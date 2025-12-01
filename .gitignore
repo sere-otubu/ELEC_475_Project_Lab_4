@@ -1,8 +1,4 @@
 venv
 project/coco2014
-project/train_cache.pt
-project/val_cache.pt
-project/train_cache_clean.pt
-project/val_cache_clean.pt
-project/best_model.pt
 project/__pycache__
+*.pt
