@@ -1,3 +1,11 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -16,9 +24,9 @@ from torch.utils.data import Subset
 BASE_DIR = "./coco2014"
 VAL_IMG_DIR = os.path.join(BASE_DIR, "images/val2014")
 VAL_CACHE = "val_cache_clean.pt"
-# MODEL_PATH = "best_model.pt"
+MODEL_PATH = "best_model.pt"
 # MODEL_PATH = "best_model_mod1.pt"
-MODEL_PATH = "best_model_mod2.pt"
+# MODEL_PATH = "best_model_mod2.pt"
 
 # How many different images to visualize
 NUM_EXAMPLES = 1

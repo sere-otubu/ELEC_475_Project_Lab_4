@@ -1,3 +1,11 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import os
 import torch
 from PIL import Image
@@ -20,15 +28,9 @@ def get_transforms(split="train"):
     """
     if split == "train":
             return transforms.Compose([
-                # REMOVED: RandomResizedCrop
-                # REMOVED: RandomHorizontalFlip
-                
-                # KEEP: Resize (Standard)
                 transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-                
                 # KEEP: Color Jitter (Makes model robust to lighting, safe for COCO)
                 transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-                
                 transforms.ToTensor(),
                 transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD)
             ])
@@ -135,9 +137,7 @@ def verify_dataset(dataset, num_samples=3):
 if __name__ == "__main__":
     # Only run this if the file is executed directly (not imported)
     
-    # UPDATE THIS PATH to match your actual image folder
-    # (This should be the folder containing the .jpg files)
-    DATA_DIR = "./coco2014" # Example root
+    DATA_DIR = "./coco2014"
     TEST_IMG_DIR = os.path.join(DATA_DIR, "images/train2014")
     CACHE_FILE = "train_cache.pt"
 

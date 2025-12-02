@@ -1,3 +1,11 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import os
 import json
 import torch
@@ -14,7 +22,7 @@ CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
 IMAGE_SIZE = 224
 
 # Paths (Adjust to your local structure)
-DATA_DIR = "./coco2014" # Example root
+DATA_DIR = "./coco2014"
 TRAIN_IMG_DIR = os.path.join(DATA_DIR, "train2014")
 VAL_IMG_DIR = os.path.join(DATA_DIR, "val2014")
 TRAIN_CAP_FILE = os.path.join(DATA_DIR, "annotations/captions_train2014.json")
@@ -27,7 +35,7 @@ def get_transforms():
     return transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)), # Resize to 224x224 
         transforms.ToTensor(),
-        transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD) # Normalize [cite: 53, 56]
+        transforms.Normalize(mean=CLIP_MEAN, std=CLIP_STD) # Normalize
     ])
 
 def cache_text_embeddings(json_path, save_path, batch_size=32):

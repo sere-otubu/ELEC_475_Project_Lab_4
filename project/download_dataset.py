@@ -1,3 +1,11 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import kagglehub
 import os
 
@@ -19,7 +27,6 @@ def download_and_inspect():
             print(f" - {item}")
             
         # Check for annotations specifically as they are critical for captions
-        [cite_start]# [cite: 48] Captions from captions_train2014.json
         if "annotations" in contents:
              print("\nInside 'annotations' folder:")
              print(os.listdir(os.path.join(path, "annotations")))

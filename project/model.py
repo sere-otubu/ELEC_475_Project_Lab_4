@@ -1,3 +1,11 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import torch
 import torch.nn as nn
 import torchvision.models as models

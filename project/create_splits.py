@@ -1,3 +1,11 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import torch
 import os
 from dataset import COCOClipDataset
@@ -9,7 +17,7 @@ VAL_IMG_DIR = os.path.join(DATA_DIR, "images/val2014")
 TRAIN_CACHE = "train_cache_clean.pt"
 VAL_CACHE = "val_cache_clean.pt"
 
-# Subset sizes (From your report)
+# Subset sizes
 TRAIN_SUBSET_SIZE = 82823
 VAL_SUBSET_SIZE = 40485
 

@@ -1,9 +1,16 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import torch
 import os
 from tqdm import tqdm
 
 # --- CONFIGURATION ---
-# Based on your check.py output, your structure involves an 'images' subfolder
 BASE_DIR = "./coco2014" 
 TRAIN_IMG_DIR = os.path.join(BASE_DIR, "images", "train2014")
 VAL_IMG_DIR = os.path.join(BASE_DIR, "images", "val2014")

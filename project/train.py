@@ -1,9 +1,16 @@
+#########################################################################################################
+#
+#   ELEC 475 - Lab 4
+#   Erhowvosere Otubu - 20293052
+#   Mihran Asadullah - 20285090
+#   Fall 2025
+#
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-import time
 import os
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -17,6 +24,8 @@ from dataset import COCOClipDataset, get_transforms
 # ==========================================
 # Choose your mode: "baseline", "mod_1", or "mod_2"
 EXPERIMENT_MODE = "baseline" 
+# EXPERIMENT_MODE = "mod_1" 
+# EXPERIMENT_MODE = "mod_2" 
 
 # Directory Settings
 DATA_DIR = "./coco2014" 
@@ -37,9 +46,6 @@ USE_SUBSET = True
 # Hardware Settings
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ==========================================
-#    AUTO-CONFIGURATION (DO NOT EDIT)
-# ==========================================
 if EXPERIMENT_MODE == "baseline":
     BATCH_SIZE = 32
     LEARNING_RATE = 1e-4
